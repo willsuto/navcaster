@@ -1,15 +1,31 @@
 import { useEffect, useState } from 'react';
 import Map from './components/Map';
+import PanelWindow from './components/PanelWindow';
+
+type PanelKey = 'telemetry' | 'routing' | 'riskAnalysis' | 'layers';
 
 type HealthResponse = {
   status: string;
   timestamp: string;
 };
 
+const panelDefinitions: { key: PanelKey; label: string }[] = [
+  { key: 'telemetry', label: 'Telemetry' },
+  { key: 'routing', label: 'Routing' },
+  { key: 'riskAnalysis', label: 'Risk Analysis' },
+  { key: 'layers', label: 'Layers' }
+];
+
 function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openPanels, setOpenPanels] = useState<Record<PanelKey, boolean>>({
+    telemetry: false,
+    routing: false,
+    riskAnalysis: false,
+    layers: false
+  });
 
   useEffect(() => {
     const fetchHealth = async () => {
@@ -32,34 +48,87 @@ function App() {
     fetchHealth();
   }, []);
 
+  const togglePanel = (panelKey: PanelKey) => {
+    setOpenPanels((current) => ({
+      ...current,
+      [panelKey]: !current[panelKey]
+    }));
+  };
+
   return (
     <>
       <Map />
 
-      {/* <div className="app-foreground">
-        <main className="container app-shell">
-          <h1 className="app-title">Navcaster</h1>
-          <p className="app-subtitle">React + TypeScript frontend talking to Node/Express backend.</p>
+      <div className="app-foreground panel-host" aria-label="Panel host">
+        <aside className="left-sidebar" aria-label="Panel controls">
+          {panelDefinitions.map((panel) => (
+            <button
+              key={panel.key}
+              type="button"
+              className={`sidebar-button${openPanels[panel.key] ? ' sidebar-button--active' : ''}`}
+              onClick={() => togglePanel(panel.key)}
+              aria-pressed={openPanels[panel.key]}
+            >
+              {panel.label}
+            </button>
+          ))}
+        </aside>
 
-          <section className="status-card">
-            <h2 className="status-card__title">Backend Health</h2>
-            {loading && <p className="status-message status-message--info">Checking backend...</p>}
-            {error && <p className="status-message status-message--error">Error: {error}</p>}
-            {health && (
-              <div className="status-details">
-                <p className="status-row">
-                  <strong className="status-label">Status:</strong>{' '}
-                  <span className="status-value status-value--success">{health.status}</span>
-                </p>
-                <p className="status-row">
-                  <strong className="status-label">Timestamp:</strong>{' '}
-                  <span className="status-value">{new Date(health.timestamp).toLocaleString()}</span>
-                </p>
-              </div>
-            )}
-          </section>
-        </main>
-      </div> */}
+        {openPanels.telemetry && (
+          <PanelWindow title="Telemetry" initialX={96} initialY={24} initialWidth={420} initialHeight={260}>
+            <section className="status-card">
+              <h2 className="status-card__title">Backend Health</h2>
+              {loading && <p className="status-message status-message--info">Checking backend...</p>}
+              {error && <p className="status-message status-message--error">Error: {error}</p>}
+              {health && (
+                <div className="status-details">
+                  <p className="status-row">
+                    <strong className="status-label">Status:</strong>{' '}
+                    <span className="status-value status-value--success">{health.status}</span>
+                  </p>
+                  <p className="status-row">
+                    <strong className="status-label">Timestamp:</strong>{' '}
+                    <span className="status-value">{new Date(health.timestamp).toLocaleString()}</span>
+                  </p>
+                </div>
+              )}
+            </section>
+          </PanelWindow>
+        )}
+
+        {openPanels.routing && (
+          <PanelWindow title="Routing" initialX={120} initialY={64} initialWidth={360} initialHeight={240}>
+            <section className="panel-placeholder">
+              <h3 className="panel-placeholder__title">Route Planner</h3>
+              <p className="panel-placeholder__text">
+                Configure route waypoints, constraints, and optimization profiles.
+              </p>
+            </section>
+          </PanelWindow>
+        )}
+
+        {openPanels.riskAnalysis && (
+          <PanelWindow title="Risk Analysis" initialX={144} initialY={104} initialWidth={360} initialHeight={240}>
+            <section className="panel-placeholder">
+              <h3 className="panel-placeholder__title">Risk Assessment</h3>
+              <p className="panel-placeholder__text">
+                Inspect hazards, weather impact, and no-fly zone conflicts.
+              </p>
+            </section>
+          </PanelWindow>
+        )}
+
+        {openPanels.layers && (
+          <PanelWindow title="Layers" initialX={168} initialY={144} initialWidth={340} initialHeight={220}>
+            <section className="panel-placeholder">
+              <h3 className="panel-placeholder__title">Map Layers</h3>
+              <p className="panel-placeholder__text">
+                Toggle overlays such as terrain, traffic, weather, and coverage.
+              </p>
+            </section>
+          </PanelWindow>
+        )}
+      </div>
     </>
   );
 }
