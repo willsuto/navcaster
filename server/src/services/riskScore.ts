@@ -121,11 +121,11 @@ export function calculateRiskScore(vessel: Vessel, weatherGrid: WeatherPoint[]):
     reasons.push('All conditions within acceptable limits');
   }
   
-  // Suggest alternate route (simplified: route further from storm center)
+  // Suggest alternate route (simplified: route with symmetric random offset away from hazards)
   const suggestedRoute = vessel.route && vessel.route.length > 0
     ? vessel.route.map(pt => ({
-        lat: pt.lat + (Math.random() - 0.3) * 0.5,
-        lng: pt.lng + (Math.random() - 0.3) * 0.5
+        lat: pt.lat + (Math.random() - 0.5) * 0.5,
+        lng: pt.lng + (Math.random() - 0.5) * 0.5
       }))
     : undefined;
   
