@@ -1,0 +1,19 @@
+{
+  "name": "navcaster",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w ui\"",
+    "dev:ui": "npm run dev -w ui",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build --workspaces --if-present",
+    "build:ui": "npm run build -w ui",
+    "build:server": "npm run build -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

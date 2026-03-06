@@ -1,0 +1,218 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  color: var(--text-primary);
+  background: var(--bg-0);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Color Palette */
+
+  /* =========================
+    BACKGROUNDS
+    ========================= */
+
+  --bg-0: #06080d;      /* main app background */
+  --bg-1: #0b1220;      /* page sections */
+  --bg-2: #0f1b2e;      /* panels */
+  --bg-3: #13243b;      /* raised panels / cards */
+
+  /* =========================
+     BORDERS
+     ========================= */
+
+  --border-subtle: #1a2a42;
+  --border-default: #22324a;
+  --border-strong: #2f4466;
+
+  /* =========================
+     TEXT
+     ========================= */
+
+  --text-primary: #e7edf7;
+  --text-secondary: #b7c3d9;
+  --text-muted: #7e8aa3;
+  --text-disabled: #4b5a73;
+
+  /* =========================
+     ACCENTS (HUD COLORS)
+     ========================= */
+
+  --accent-cyan: #31d6ff;     /* telemetry / data */
+  --accent-blue: #4aa3ff;     /* links / actions */
+  --accent-green: #48ff7b;    /* success / system ok */
+  --accent-violet: #9b7bff;   /* computed route / highlight */
+
+  /* =========================
+     WARNINGS / ALERTS
+     ========================= */
+
+  --warning: #ffb020;
+  --danger: #ff3b4d;
+  --info: #31d6ff;
+  --success: #48ff7b;
+
+  /* =========================
+     BACKGROUND STATES
+     ========================= */
+
+  --success-bg: rgba(72,255,123,0.12);
+  --info-bg: rgba(49,214,255,0.12);
+  --warning-bg: rgba(255,176,32,0.14);
+  --danger-bg: rgba(255,59,77,0.14);
+
+  /* =========================
+     GLOWS (HUD STYLE)
+     ========================= */
+
+  --glow-cyan: 0 0 24px rgba(49,214,255,0.25);
+  --glow-green: 0 0 24px rgba(72,255,123,0.25);
+  --glow-red: 0 0 24px rgba(255,59,77,0.3);
+
+  /* =========================
+     SHADOWS
+     ========================= */
+
+  --shadow-panel: 0 12px 30px rgba(0,0,0,0.45);
+
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-0);
+  color: var(--text-primary);
+}
+
+#root {
+  position: relative;
+  min-height: 100vh;
+}
+
+.map-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.map-bg__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-bg__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* background:
+    linear-gradient(180deg, rgba(3, 7, 14, 0.2), rgba(3, 7, 14, 0.78)),
+    radial-gradient(circle at 20% 12%, rgba(49, 214, 255, 0.18), transparent 36%),
+    radial-gradient(circle at 82% 86%, rgba(155, 123, 255, 0.16), transparent 40%); */
+}
+
+.app-foreground {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: grid;
+  align-items: start;
+  padding: 2rem;
+  pointer-events: none;
+}
+
+.app-shell {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-1) 86%, transparent),
+    color-mix(in srgb, var(--bg-2) 90%, transparent)
+  );
+  backdrop-filter: blur(8px) saturate(110%);
+  box-shadow: var(--shadow-panel);
+  pointer-events: auto;
+}
+
+.app-title {
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+  color: var(--text-primary);
+  text-shadow: var(--glow-cyan);
+}
+
+.app-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.status-card {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-3));
+}
+
+.status-card__title {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.status-message {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.625rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.status-message--info {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: color-mix(in srgb, var(--info) 45%, transparent);
+  box-shadow: var(--glow-cyan);
+}
+
+.status-message--error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  box-shadow: var(--glow-red);
+}
+
+.status-details {
+  margin-top: 0.5rem;
+}
+
+.status-row {
+  margin: 0.35rem 0;
+}
+
+.status-label {
+  color: var(--text-secondary);
+}
+
+.status-value {
+  color: var(--text-primary);
+}
+
+.status-value--success {
+  color: var(--success);
+  text-shadow: var(--glow-green);
+}
+
+.error {
+  color: var(--danger);
+}
