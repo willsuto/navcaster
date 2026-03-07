@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useVesselFeatureCollection } from '../store/aisGeoJson';
@@ -7,8 +7,11 @@ function Map() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const scaleControlRef = useRef<mapboxgl.ScaleControl | null>(null);
   const vesselData = useVesselFeatureCollection();
   const vesselDataRef = useRef(vesselData);
+  const [cursorLngLat, setCursorLngLat] = useState<mapboxgl.LngLat | null>(null);
+  const [zoom, setZoom] = useState<number | null>(null);
 
   useEffect(() => {
     vesselDataRef.current = vesselData;
@@ -36,8 +39,8 @@ function Map() {
     const map = new mapboxgl.Map({
       container,
       style: 'mapbox://styles/mapbox/dark-v11',
-      center: [-97.5, 37.8],
-      zoom: 3.2,
+      center: [103.85, 1.1],
+      zoom: 10,
       pitch: 20,
       bearing: 18,
       attributionControl: false,
@@ -48,6 +51,20 @@ function Map() {
 
     const nav = new mapboxgl.NavigationControl({ showCompass: true, showZoom: false });
     map.addControl(nav, 'top-right');
+
+    const scale = new mapboxgl.ScaleControl({ maxWidth: 120, unit: 'nautical' });
+    map.addControl(scale, 'bottom-left');
+    scaleControlRef.current = scale;
+
+    const updateScaleIndicator = () => {
+      const scaleElement = map.getContainer().querySelector('.mapboxgl-ctrl-scale') as HTMLElement | null;
+      if (!scaleElement) return;
+      const inlineWidth = scaleElement.style.width;
+      const pixelWidth = inlineWidth && inlineWidth.length > 0
+        ? inlineWidth
+        : `${scaleElement.offsetWidth}px`;
+      scaleElement.style.setProperty('--scale-line-width', pixelWidth);
+    };
 
     const handleMarkerClick = (event: mapboxgl.MapLayerMouseEvent) => {
       const feature = event.features?.[0];
@@ -92,11 +109,11 @@ function Map() {
               </div>
               <div class="ais-popup__row">
                 <span class="ais-popup__label">COG</span>
-                <span class="ais-popup__value">${cog}</span>
+                <span class="ais-popup__value">${cog}°</span>
               </div>
               <div class="ais-popup__row">
                 <span class="ais-popup__label">SOG</span>
-                <span class="ais-popup__value">${sog}</span>
+                <span class="ais-popup__value">${sog} kts</span>
               </div>
               <div class="ais-popup__row ais-popup__row--stack">
                 <span class="ais-popup__value">${localTime}</span>
@@ -113,6 +130,15 @@ function Map() {
 
     const handleMarkerLeave = () => {
       map.getCanvas().style.cursor = '';
+    };
+
+    const handleMouseMove = (event: mapboxgl.MapMouseEvent) => {
+      setCursorLngLat(event.lngLat);
+    };
+
+    const handleZoom = () => {
+      setZoom(map.getZoom());
+      updateScaleIndicator();
     };
 
     map.on('load', () => {
@@ -145,8 +171,8 @@ function Map() {
           const sternY = size - 4;
           const shoulderY = 10;
           const midY = 18;
-          const shoulderHalfWidth = 5;
-          const maxHalfWidth = 10;
+          const shoulderHalfWidth = 2.5;
+          const maxHalfWidth = 5;
 
           context.clearRect(0, 0, size, size);
           context.fillStyle = '#ffffff';
@@ -165,11 +191,6 @@ function Map() {
           context.quadraticCurveTo(cx + maxHalfWidth + 1, midY, cx + maxHalfWidth, sternY - 1);
           // Flat transom stern.
           context.lineTo(cx + maxHalfWidth, sternY);
-          // Tiny center notch so stern is visually distinct.
-          context.lineTo(cx + 2, sternY);
-          context.lineTo(cx + 1, sternY + 2);
-          context.lineTo(cx - 1, sternY + 2);
-          context.lineTo(cx - 2, sternY);
           context.lineTo(cx - maxHalfWidth, sternY);
           // Port hull back up.
           context.lineTo(cx - maxHalfWidth, sternY - 1);
@@ -192,27 +213,27 @@ function Map() {
         }
       }
 
-      map.addLayer({
-        id: 'vessels-marker-outline',
-        type: 'symbol',
-        source: 'vessels',
-        layout: {
-          'icon-image': vesselIconId,
-          'icon-size': 1.45,
-          'icon-rotation-alignment': 'map',
-          'icon-rotate': [
-            'coalesce',
-            ['to-number', ['get', 'heading']],
-            ['to-number', ['get', 'cog']],
-            0
-          ],
-          'icon-allow-overlap': true
-        },
-        paint: {
-          'icon-color': '#050a12',
-          'icon-opacity': 0.9
-        }
-      });
+      // map.addLayer({
+      //   id: 'vessels-marker-outline',
+      //   type: 'symbol',
+      //   source: 'vessels',
+      //   layout: {
+      //     'icon-image': vesselIconId,
+      //     'icon-size': 1.55,
+      //     'icon-rotation-alignment': 'map',
+      //     'icon-rotate': [
+      //       'case',
+      //       ['==', ['to-number', ['get', 'cog']], 360],
+      //       0,
+      //       ['coalesce', ['to-number', ['get', 'cog']], 0]
+      //     ],
+      //     'icon-allow-overlap': true
+      //   },
+      //   paint: {
+      //     'icon-color': '#a1a1a1',
+      //     'icon-opacity': 1
+      //   }
+      // });
 
       map.addLayer({
         id: 'vessels-marker',
@@ -223,10 +244,10 @@ function Map() {
           'icon-size': 1.25,
           'icon-rotation-alignment': 'map',
           'icon-rotate': [
-            'coalesce',
-            ['to-number', ['get', 'heading']],
-            ['to-number', ['get', 'cog']],
-            0
+            'case',
+            ['==', ['to-number', ['get', 'cog']], 360],
+            0,
+            ['coalesce', ['to-number', ['get', 'cog']], 0]
           ],
           'icon-allow-overlap': true
         },
@@ -251,7 +272,14 @@ function Map() {
         'space-color': '#010205',
         'star-intensity': 0.25
       });
+
+      updateScaleIndicator();
     });
+
+    setZoom(map.getZoom());
+    map.on('mousemove', handleMouseMove);
+    map.on('zoom', handleZoom);
+    map.on('resize', updateScaleIndicator);
 
     return () => {
       if (map) {
@@ -263,10 +291,18 @@ function Map() {
 
         map.off('mouseleave', 'vessels-marker-outline', handleMarkerLeave);
         map.off('mouseleave', 'vessels-marker', handleMarkerLeave);
+
+        map.off('mousemove', handleMouseMove);
+        map.off('zoom', handleZoom);
+        map.off('resize', updateScaleIndicator);
       }
       if (popupRef.current) {
         popupRef.current.remove();
         popupRef.current = null;
+      }
+      if (scaleControlRef.current) {
+        map.removeControl(scaleControlRef.current);
+        scaleControlRef.current = null;
       }
       map.remove();
       mapRef.current = null;
@@ -277,6 +313,24 @@ function Map() {
     <div className="map-bg" aria-hidden="true">
       <div ref={containerRef} className="map-bg__canvas" />
       <div className="map-bg__overlay" />
+      <div className="map-hud" aria-live="polite">
+        <div className="map-hud__row">
+          <span className="map-hud__label">Lat:</span>
+          <span className="map-hud__value">
+            {cursorLngLat ? cursorLngLat.lat.toFixed(6) : '—'}
+          </span>
+        </div>
+        <div className="map-hud__row">
+          <span className="map-hud__label">Lon:</span>
+          <span className="map-hud__value">
+            {cursorLngLat ? cursorLngLat.lng.toFixed(6) : '—'}
+          </span>
+        </div>
+        <div className="map-hud__row">
+          <span className="map-hud__label">Z:</span>
+          <span className="map-hud__value">{zoom !== null ? zoom.toFixed(2) : '—'}</span>
+        </div>
+      </div>
     </div>
   );
 }
