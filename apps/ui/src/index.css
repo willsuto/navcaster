@@ -245,6 +245,104 @@ body {
   opacity: 1;
 }
 
+.ais-popup .mapboxgl-popup-content {
+  padding: 0;
+  min-width: 200px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-1) 86%, transparent),
+    color-mix(in srgb, var(--bg-2) 92%, transparent)
+  );
+  color: var(--text-primary);
+  font-family: inherit;
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(10px) saturate(120%);
+}
+
+.ais-popup .mapboxgl-popup-close-button {
+  padding: 0.1rem 0.35rem;
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.ais-popup .mapboxgl-popup-close-button:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-3) 60%, transparent);
+  border-radius: 6px;
+}
+
+.ais-popup.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+.ais-popup.mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
+.ais-popup.mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
+  border-top-color: var(--bg-2);
+}
+
+.ais-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+.ais-popup.mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
+.ais-popup.mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip {
+  border-bottom-color: var(--bg-2);
+}
+
+.ais-popup.mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+  border-right-color: var(--bg-2);
+}
+
+.ais-popup.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+  border-left-color: var(--bg-2);
+}
+
+.ais-popup .mapboxgl-popup-tip {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+.ais-popup__header {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+}
+
+.ais-popup__title {
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  text-shadow: var(--glow-cyan);
+}
+
+.ais-popup__content {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.ais-popup__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.ais-popup__row--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.ais-popup__label {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ais-popup__value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 .app-shell {
   width: min(960px, 100%);
   margin: 0 auto;

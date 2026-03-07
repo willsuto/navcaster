@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Map from './components/Map';
 import PanelWindow from './components/PanelWindow';
+import { useAisSocket } from './hooks/useAisSocket';
+import { useAisVesselStore } from './store/aisVessels';
 
 type PanelKey = 'telemetry' | 'routing' | 'riskAnalysis' | 'layers';
 
@@ -25,6 +27,23 @@ function App() {
     routing: false,
     riskAnalysis: false,
     layers: false
+  });
+  const lastLogRef = useRef(0);
+  const upsertVessel = useAisVesselStore((state) => state.upsertVessel);
+
+  useAisSocket({
+    onVesselUpdate: (update) => {
+      upsertVessel(update);
+      const now = Date.now();
+      if (now - lastLogRef.current < 2000) return;
+      lastLogRef.current = now;
+      // eslint-disable-next-line no-console
+      console.log('[AIS] vessel update', update);
+    },
+    onStreamStatus: (status) => {
+      // eslint-disable-next-line no-console
+      console.log('[AIS] stream status', status);
+    }
   });
 
   useEffect(() => {
