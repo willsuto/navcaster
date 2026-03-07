@@ -7,6 +7,7 @@ export type VesselFeatureProperties = {
   heading?: number;
   cog?: number;
   sog?: number;
+  roll?: number;
   lastSeen: number;
   messageType?: string;
   timestamp?: string;
@@ -51,6 +52,7 @@ const toVesselFeature = (vessel: Vessel) => {
       heading: vessel.heading,
       cog: vessel.cog,
       sog: vessel.sog,
+      roll: vessel.roll,
       lastSeen: vessel.lastSeen,
       messageType: vessel.messageType,
       timestamp: vessel.timestamp

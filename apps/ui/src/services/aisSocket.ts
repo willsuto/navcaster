@@ -5,6 +5,7 @@ export type VesselUpdate = {
   cog?: number;
   sog?: number;
   heading?: number;
+  roll?: number;
   name?: string;
   messageType?: string;
   timestamp?: string;

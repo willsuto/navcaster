@@ -8,6 +8,7 @@ import {
   createAisStreamConnector,
   DEFAULT_BOUNDING_BOXES
 } from './aisstream';
+import { createMockShip } from './mockship';
 
 dotenv.config();
 
@@ -66,6 +67,12 @@ const broadcastAisStatus = () => {
   });
 };
 
+const mockshipEnabled = (process.env.MOCKSHIP_ENABLED ?? 'true') !== 'false';
+const mockshipLatitude = Number(process.env.MOCKSHIP_LAT ?? '1.2');
+const mockshipLongitude = Number(process.env.MOCKSHIP_LON ?? '103.4');
+const mockshipMmsi = Number(process.env.MOCKSHIP_MMSI ?? '999000001');
+const mockshipName = process.env.MOCKSHIP_NAME ?? 'Oceanus';
+
 const aisConnector = createAisStreamConnector({
   apiKey: process.env.AISSTREAM_API_KEY,
   boundingBoxes,
@@ -82,6 +89,31 @@ const aisConnector = createAisStreamConnector({
     broadcastAisStatus();
   }
 });
+
+if (mockshipEnabled) {
+  const mockship = createMockShip({
+    initialLatitude: mockshipLatitude,
+    initialLongitude: mockshipLongitude,
+    mmsi: Number.isFinite(mockshipMmsi) ? mockshipMmsi : 999000001,
+    name: mockshipName,
+    onUpdate: (state) => {
+      broadcast({
+        type: 'vessel:update',
+        payload: {
+          ...state,
+          timestamp: new Date().toISOString()
+        }
+      });
+    },
+    onLog: (message) => {
+      // eslint-disable-next-line no-console
+      console.log(message);
+    }
+  });
+
+  mockship.start();
+  mockship.startCli();
+}
 
 wss.on('connection', (socket) => {
   socket.send(

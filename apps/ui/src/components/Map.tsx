@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useVesselFeatureCollection } from '../store/aisGeoJson';
+import { useOceanusTailFeatureCollection } from '../store/oceanusTailGeoJson';
 
 function Map() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -10,6 +11,8 @@ function Map() {
   const scaleControlRef = useRef<mapboxgl.ScaleControl | null>(null);
   const vesselData = useVesselFeatureCollection();
   const vesselDataRef = useRef(vesselData);
+  const tailData = useOceanusTailFeatureCollection();
+  const tailDataRef = useRef(tailData);
   const [cursorLngLat, setCursorLngLat] = useState<mapboxgl.LngLat | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
 
@@ -22,6 +25,16 @@ function Map() {
       source.setData(vesselData);
     }
   }, [vesselData]);
+
+  useEffect(() => {
+    tailDataRef.current = tailData;
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource('oceanus-tail') as mapboxgl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(tailData);
+    }
+  }, [tailData]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -43,6 +56,7 @@ function Map() {
       zoom: 10,
       pitch: 20,
       bearing: 18,
+      logoPosition: 'bottom-left',
       attributionControl: false,
       interactive: true
     });
@@ -155,6 +169,11 @@ function Map() {
         data: vesselDataRef.current
       });
 
+      map.addSource('oceanus-tail', {
+        type: 'geojson',
+        data: tailDataRef.current
+      });
+
       // Ship silhouette SDF icon (forward points up so existing icon-rotate continues to work).
       let vesselIconId = 'ship-sdf';
 
@@ -213,27 +232,21 @@ function Map() {
         }
       }
 
-      // map.addLayer({
-      //   id: 'vessels-marker-outline',
-      //   type: 'symbol',
-      //   source: 'vessels',
-      //   layout: {
-      //     'icon-image': vesselIconId,
-      //     'icon-size': 1.55,
-      //     'icon-rotation-alignment': 'map',
-      //     'icon-rotate': [
-      //       'case',
-      //       ['==', ['to-number', ['get', 'cog']], 360],
-      //       0,
-      //       ['coalesce', ['to-number', ['get', 'cog']], 0]
-      //     ],
-      //     'icon-allow-overlap': true
-      //   },
-      //   paint: {
-      //     'icon-color': '#a1a1a1',
-      //     'icon-opacity': 1
-      //   }
-      // });
+      map.addLayer({
+        id: 'oceanus-tail-line',
+        type: 'line',
+        source: 'oceanus-tail',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#f72585',
+          'line-width': 2,
+          'line-opacity': 0.8,
+          'line-dasharray': [2, 2]
+        }
+      });
 
       map.addLayer({
         id: 'vessels-marker',
@@ -252,7 +265,12 @@ function Map() {
           'icon-allow-overlap': true
         },
         paint: {
-          'icon-color': '#4cc9f0'
+          'icon-color': [
+            'case',
+            ['==', ['to-number', ['get', 'mmsi']], 999000001],
+            '#f72585',
+            '#4cc9f0'
+          ]
         }
       });
 

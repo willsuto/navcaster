@@ -510,9 +510,22 @@ body {
 }
 
 /* --- Mapbox scale control: HUD-matched + bracketed line indicator --- */
+.mapboxgl-ctrl-bottom-left {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 0 14px 14px;
+}
+
+.mapboxgl-ctrl-bottom-left .mapboxgl-ctrl,
+.mapboxgl-ctrl-bottom-left .mapboxgl-ctrl-logo {
+  margin: 0;
+}
+
 .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl.mapboxgl-ctrl-scale {
   position: relative;
-  margin: 0 0 16px 16px;
+  margin: 0;
   padding: 0.35rem 0.55rem 0.4rem;
   width: 150px;
   min-width: 150px;

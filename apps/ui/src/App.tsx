@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Map from './components/Map';
 import PanelWindow from './components/PanelWindow';
 import { useAisSocket } from './hooks/useAisSocket';
+import { useOceanusTelemetryLogger } from './hooks/useOceanusTelemetryLogger';
 import { useAisVesselStore } from './store/aisVessels';
 
 type PanelKey = 'telemetry' | 'routing' | 'riskAnalysis' | 'layers';
@@ -10,6 +11,8 @@ type HealthResponse = {
   status: string;
   timestamp: string;
 };
+
+const OCEANUS_MMSI = 999000001;
 
 const panelDefinitions: { key: PanelKey; label: string }[] = [
   { key: 'telemetry', label: 'Telemetry' },
@@ -30,6 +33,9 @@ function App() {
   });
   const lastLogRef = useRef(0);
   const upsertVessel = useAisVesselStore((state) => state.upsertVessel);
+  const oceanus = useAisVesselStore((state) => state.vessels[String(OCEANUS_MMSI)]);
+
+  useOceanusTelemetryLogger();
 
   useAisSocket({
     onVesselUpdate: (update) => {
@@ -108,6 +114,39 @@ function App() {
                   <p className="status-row">
                     <strong className="status-label">Timestamp:</strong>{' '}
                     <span className="status-value">{new Date(health.timestamp).toLocaleString()}</span>
+                  </p>
+                </div>
+              )}
+            </section>
+
+            <section className="status-card">
+              <h2 className="status-card__title">Oceanus Telemetry</h2>
+              {!oceanus && <p className="status-message status-message--info">Awaiting Oceanus telemetry...</p>}
+              {oceanus && (
+                <div className="status-details">
+                  <p className="status-row">
+                    <strong className="status-label">Lat/Lon:</strong>{' '}
+                    <span className="status-value">
+                      {oceanus.latitude?.toFixed(5) ?? '—'}, {oceanus.longitude?.toFixed(5) ?? '—'}
+                    </span>
+                  </p>
+                  <p className="status-row">
+                    <strong className="status-label">COG:</strong>{' '}
+                    <span className="status-value">{oceanus.cog?.toFixed(1) ?? '—'}°</span>
+                  </p>
+                  <p className="status-row">
+                    <strong className="status-label">SOG:</strong>{' '}
+                    <span className="status-value">{oceanus.sog?.toFixed(2) ?? '—'} kts</span>
+                  </p>
+                  <p className="status-row">
+                    <strong className="status-label">Roll:</strong>{' '}
+                    <span className="status-value">{oceanus.roll?.toFixed(2) ?? '—'}°</span>
+                  </p>
+                  <p className="status-row">
+                    <strong className="status-label">Last Seen:</strong>{' '}
+                    <span className="status-value">
+                      {new Date(oceanus.lastSeen).toLocaleTimeString()}
+                    </span>
                   </p>
                 </div>
               )}
