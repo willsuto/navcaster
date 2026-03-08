@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import LogPanel from './components/LogPanel';
 import Map from './components/Map';
 import PanelWindow from './components/PanelWindow';
 import { useAisSocket } from './hooks/useAisSocket';
 import { useOceanusTelemetryLogger } from './hooks/useOceanusTelemetryLogger';
 import { useAisVesselStore } from './store/aisVessels';
 
-type PanelKey = 'telemetry' | 'routing' | 'riskAnalysis' | 'layers';
+type PanelKey = 'telemetry' | 'routing' | 'riskAnalysis' | 'layers' | 'log';
 
 type HealthResponse = {
   status: string;
@@ -16,6 +17,7 @@ const OCEANUS_MMSI = 999000001;
 
 const panelDefinitions: { key: PanelKey; label: string }[] = [
   { key: 'telemetry', label: 'Telemetry' },
+  { key: 'log', label: 'Log' },
   { key: 'routing', label: 'Routing' },
   { key: 'riskAnalysis', label: 'Risk Analysis' },
   { key: 'layers', label: 'Layers' }
@@ -27,6 +29,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [openPanels, setOpenPanels] = useState<Record<PanelKey, boolean>>({
     telemetry: false,
+    log: false,
     routing: false,
     riskAnalysis: false,
     layers: false
@@ -151,6 +154,12 @@ function App() {
                 </div>
               )}
             </section>
+          </PanelWindow>
+        )}
+
+        {openPanels.log && (
+          <PanelWindow title="Log" initialX={112} initialY={52} initialWidth={520} initialHeight={320}>
+            <LogPanel />
           </PanelWindow>
         )}
 
