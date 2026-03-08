@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import Bridge from './components/Bridge';
+import LayerPanel from './components/LayerPanel';
 import LogPanel from './components/LogPanel';
 import Map from './components/Map';
 import PanelWindow from './components/PanelWindow';
@@ -6,7 +8,7 @@ import { useAisSocket } from './hooks/useAisSocket';
 import { useOceanusTelemetryLogger } from './hooks/useOceanusTelemetryLogger';
 import { useAisVesselStore } from './store/aisVessels';
 
-type PanelKey = 'telemetry' | 'routing' | 'riskAnalysis' | 'layers' | 'log';
+type PanelKey = 'telemetry' | 'routing' | 'layers' | 'log';
 
 type HealthResponse = {
   status: string;
@@ -16,10 +18,9 @@ type HealthResponse = {
 const OCEANUS_MMSI = 999000001;
 
 const panelDefinitions: { key: PanelKey; label: string }[] = [
-  { key: 'telemetry', label: 'Telemetry' },
+  { key: 'telemetry', label: 'Bridge' },
   { key: 'log', label: 'Log' },
   { key: 'routing', label: 'Routing' },
-  { key: 'riskAnalysis', label: 'Risk Analysis' },
   { key: 'layers', label: 'Layers' }
 ];
 
@@ -31,7 +32,6 @@ function App() {
     telemetry: false,
     log: false,
     routing: false,
-    riskAnalysis: false,
     layers: false
   });
   const lastLogRef = useRef(0);
@@ -83,6 +83,13 @@ function App() {
     }));
   };
 
+  const closePanel = (panelKey: PanelKey) => {
+    setOpenPanels((current) => ({
+      ...current,
+      [panelKey]: false
+    }));
+  };
+
   return (
     <>
       <Map />
@@ -103,68 +110,40 @@ function App() {
         </aside>
 
         {openPanels.telemetry && (
-          <PanelWindow title="Telemetry" initialX={96} initialY={24} initialWidth={420} initialHeight={260}>
-            <section className="status-card">
-              <h2 className="status-card__title">Backend Health</h2>
-              {loading && <p className="status-message status-message--info">Checking backend...</p>}
-              {error && <p className="status-message status-message--error">Error: {error}</p>}
-              {health && (
-                <div className="status-details">
-                  <p className="status-row">
-                    <strong className="status-label">Status:</strong>{' '}
-                    <span className="status-value status-value--success">{health.status}</span>
-                  </p>
-                  <p className="status-row">
-                    <strong className="status-label">Timestamp:</strong>{' '}
-                    <span className="status-value">{new Date(health.timestamp).toLocaleString()}</span>
-                  </p>
-                </div>
-              )}
-            </section>
-
-            <section className="status-card">
-              <h2 className="status-card__title">Oceanus Telemetry</h2>
-              {!oceanus && <p className="status-message status-message--info">Awaiting Oceanus telemetry...</p>}
-              {oceanus && (
-                <div className="status-details">
-                  <p className="status-row">
-                    <strong className="status-label">Lat/Lon:</strong>{' '}
-                    <span className="status-value">
-                      {oceanus.latitude?.toFixed(5) ?? '—'}, {oceanus.longitude?.toFixed(5) ?? '—'}
-                    </span>
-                  </p>
-                  <p className="status-row">
-                    <strong className="status-label">COG:</strong>{' '}
-                    <span className="status-value">{oceanus.cog?.toFixed(1) ?? '—'}°</span>
-                  </p>
-                  <p className="status-row">
-                    <strong className="status-label">SOG:</strong>{' '}
-                    <span className="status-value">{oceanus.sog?.toFixed(2) ?? '—'} kts</span>
-                  </p>
-                  <p className="status-row">
-                    <strong className="status-label">Roll:</strong>{' '}
-                    <span className="status-value">{oceanus.roll?.toFixed(2) ?? '—'}°</span>
-                  </p>
-                  <p className="status-row">
-                    <strong className="status-label">Last Seen:</strong>{' '}
-                    <span className="status-value">
-                      {new Date(oceanus.lastSeen).toLocaleTimeString()}
-                    </span>
-                  </p>
-                </div>
-              )}
-            </section>
+          <PanelWindow
+            title="Bridge"
+            initialX={96}
+            initialY={24}
+            initialWidth={420}
+            initialHeight={260}
+            onClose={() => closePanel('telemetry')}
+          >
+            <Bridge oceanus={oceanus} health={health} loading={loading} error={error} />
           </PanelWindow>
         )}
 
         {openPanels.log && (
-          <PanelWindow title="Log" initialX={112} initialY={52} initialWidth={520} initialHeight={320}>
+          <PanelWindow
+            title="Log"
+            initialX={112}
+            initialY={52}
+            initialWidth={520}
+            initialHeight={320}
+            onClose={() => closePanel('log')}
+          >
             <LogPanel />
           </PanelWindow>
         )}
 
         {openPanels.routing && (
-          <PanelWindow title="Routing" initialX={120} initialY={64} initialWidth={360} initialHeight={240}>
+          <PanelWindow
+            title="Routing"
+            initialX={120}
+            initialY={64}
+            initialWidth={360}
+            initialHeight={240}
+            onClose={() => closePanel('routing')}
+          >
             <section className="panel-placeholder">
               <h3 className="panel-placeholder__title">Route Planner</h3>
               <p className="panel-placeholder__text">
@@ -174,25 +153,16 @@ function App() {
           </PanelWindow>
         )}
 
-        {openPanels.riskAnalysis && (
-          <PanelWindow title="Risk Analysis" initialX={144} initialY={104} initialWidth={360} initialHeight={240}>
-            <section className="panel-placeholder">
-              <h3 className="panel-placeholder__title">Risk Assessment</h3>
-              <p className="panel-placeholder__text">
-                Inspect hazards, weather impact, and no-fly zone conflicts.
-              </p>
-            </section>
-          </PanelWindow>
-        )}
-
         {openPanels.layers && (
-          <PanelWindow title="Layers" initialX={168} initialY={144} initialWidth={340} initialHeight={220}>
-            <section className="panel-placeholder">
-              <h3 className="panel-placeholder__title">Map Layers</h3>
-              <p className="panel-placeholder__text">
-                Toggle overlays such as terrain, traffic, weather, and coverage.
-              </p>
-            </section>
+          <PanelWindow
+            title="Layers"
+            initialX={168}
+            initialY={144}
+            initialWidth={340}
+            initialHeight={220}
+            onClose={() => closePanel('layers')}
+          >
+            <LayerPanel />
           </PanelWindow>
         )}
       </div>

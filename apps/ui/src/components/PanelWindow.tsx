@@ -15,6 +15,7 @@ type PanelWindowProps = {
   initialHeight: number;
   minWidth?: number;
   minHeight?: number;
+  onClose?: () => void;
   children: ReactNode;
 };
 
@@ -28,6 +29,7 @@ function PanelWindow({
   initialHeight,
   minWidth = 280,
   minHeight = 160,
+  onClose,
   children
 }: PanelWindowProps) {
   const [rect, setRect] = useState<Rect>({
@@ -129,6 +131,17 @@ function PanelWindow({
     >
       <header className="panel-window__header" onPointerDown={startDrag}>
         <h2 className="panel-window__title">{title}</h2>
+        {onClose && (
+          <button
+            type="button"
+            className="panel-window__close"
+            onClick={onClose}
+            onPointerDown={(event) => event.stopPropagation()}
+            aria-label={`Close ${title} panel`}
+          >
+            ×
+          </button>
+        )}
       </header>
 
       <div className="panel-window__content">{children}</div>

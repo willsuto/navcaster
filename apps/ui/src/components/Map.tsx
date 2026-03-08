@@ -1,8 +1,50 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useVesselFeatureCollection } from '../store/aisGeoJson';
 import { useOceanusTailFeatureCollection } from '../store/oceanusTailGeoJson';
+import { useMapLayersStore } from '../store/mapLayers';
+import { useAisVesselStore } from '../store/aisVessels';
+
+const OCEANUS_MMSI = 999000001;
+const EARTH_RADIUS_METERS = 6371000;
+const METERS_PER_NM = 1852;
+
+const isValidCoordinate = (
+  value: number | undefined,
+  min: number,
+  max: number
+): value is number => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
+
+const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+const toDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+const distanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const fromLat = toRadians(lat1);
+  const toLat = toRadians(lat2);
+
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+
+  const a = sinLat * sinLat + Math.cos(fromLat) * Math.cos(toLat) * sinLon * sinLon;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return EARTH_RADIUS_METERS * c;
+};
+
+const bearingDegrees = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const fromLat = toRadians(lat1);
+  const toLat = toRadians(lat2);
+  const dLon = toRadians(lon2 - lon1);
+
+  const y = Math.sin(dLon) * Math.cos(toLat);
+  const x = Math.cos(fromLat) * Math.sin(toLat) - Math.sin(fromLat) * Math.cos(toLat) * Math.cos(dLon);
+  const bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
+
+  return bearing;
+};
 
 function Map() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -15,6 +57,50 @@ function Map() {
   const tailDataRef = useRef(tailData);
   const [cursorLngLat, setCursorLngLat] = useState<mapboxgl.LngLat | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
+  const aisEnabled = useMapLayersStore((state) => state.aisEnabled);
+  const oceanusEnabled = useMapLayersStore((state) => state.oceanusEnabled);
+  const trackEnabled = useMapLayersStore((state) => state.trackEnabled);
+  const oceanus = useAisVesselStore((state) => state.vessels[String(OCEANUS_MMSI)]);
+
+  const oceanusPosition = useMemo(() => {
+    const latitude = oceanus?.latitude;
+    const longitude = oceanus?.longitude;
+
+    if (!isValidCoordinate(latitude, -90, 90)) return null;
+    if (!isValidCoordinate(longitude, -180, 180)) return null;
+
+    return { latitude, longitude };
+  }, [oceanus?.latitude, oceanus?.longitude]);
+
+  const { rangeLabel, bearingLabel } = useMemo(() => {
+    if (!cursorLngLat || !oceanusPosition) {
+      return { rangeLabel: '—', bearingLabel: '—' };
+    }
+
+    const meters = distanceMeters(
+      oceanusPosition.latitude,
+      oceanusPosition.longitude,
+      cursorLngLat.lat,
+      cursorLngLat.lng
+    );
+    const rangeNm = meters / METERS_PER_NM;
+    const bearing = bearingDegrees(
+      oceanusPosition.latitude,
+      oceanusPosition.longitude,
+      cursorLngLat.lat,
+      cursorLngLat.lng
+    );
+
+    return {
+      rangeLabel: `${rangeNm.toFixed(2)} nm`,
+      bearingLabel: `${bearing.toFixed(0)}°`
+    };
+  }, [cursorLngLat, oceanusPosition]);
+
+  const setLayerVisibility = (map: mapboxgl.Map, layerId: string, enabled: boolean) => {
+    if (!map.getLayer(layerId)) return;
+    map.setLayoutProperty(layerId, 'visibility', enabled ? 'visible' : 'none');
+  };
 
   useEffect(() => {
     vesselDataRef.current = vesselData;
@@ -35,6 +121,25 @@ function Map() {
       source.setData(tailData);
     }
   }, [tailData]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    setLayerVisibility(map, 'ais-marker', aisEnabled);
+    setLayerVisibility(map, 'ais-dot', aisEnabled);
+  }, [aisEnabled]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    setLayerVisibility(map, 'oceanus-marker', oceanusEnabled);
+  }, [oceanusEnabled]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    setLayerVisibility(map, 'oceanus-tail-line', trackEnabled);
+  }, [trackEnabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -248,40 +353,87 @@ function Map() {
         }
       });
 
+      // AIS switches from dots to ship icons at this zoom level.
+      const AIS_LOD_ZOOM = 11;
+
+      const vesselMarkerLayout: mapboxgl.SymbolLayout = {
+        'icon-image': vesselIconId,
+        'icon-size': 1.25,
+        'icon-rotation-alignment': 'map',
+        'icon-rotate': [
+          'case',
+          ['==', ['to-number', ['get', 'cog']], 360],
+          0,
+          ['coalesce', ['to-number', ['get', 'cog']], 0]
+        ],
+        'icon-allow-overlap': true
+      };
+
       map.addLayer({
-        id: 'vessels-marker',
+        id: 'ais-marker',
         type: 'symbol',
         source: 'vessels',
-        layout: {
-          'icon-image': vesselIconId,
-          'icon-size': 1.25,
-          'icon-rotation-alignment': 'map',
-          'icon-rotate': [
-            'case',
-            ['==', ['to-number', ['get', 'cog']], 360],
-            0,
-            ['coalesce', ['to-number', ['get', 'cog']], 0]
-          ],
-          'icon-allow-overlap': true
-        },
+        filter: ['!=', ['to-number', ['get', 'mmsi']], 999000001],
+        minzoom: AIS_LOD_ZOOM,
+        layout: vesselMarkerLayout,
         paint: {
-          'icon-color': [
-            'case',
-            ['==', ['to-number', ['get', 'mmsi']], 999000001],
-            '#f72585',
-            '#4cc9f0'
+          'icon-color': '#a8b44e'
+        }
+      });
+
+      map.addLayer({
+        id: 'ais-dot',
+        type: 'circle',
+        source: 'vessels',
+        filter: ['!=', ['to-number', ['get', 'mmsi']], 999000001],
+        maxzoom: AIS_LOD_ZOOM,
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            2,
+            1.5,
+            AIS_LOD_ZOOM,
+            3
+          ],
+          'circle-color': '#a8b44e',
+          'circle-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            2,
+            0.45,
+            AIS_LOD_ZOOM,
+            0.85
           ]
         }
       });
 
-      map.on('click', 'vessels-marker-outline', handleMarkerClick);
-      map.on('click', 'vessels-marker', handleMarkerClick);
+      map.addLayer({
+        id: 'oceanus-marker',
+        type: 'symbol',
+        source: 'vessels',
+        filter: ['==', ['to-number', ['get', 'mmsi']], 999000001],
+        layout: vesselMarkerLayout,
+        paint: {
+          'icon-color': '#f72585'
+        }
+      });
 
-      map.on('mouseenter', 'vessels-marker-outline', handleMarkerEnter);
-      map.on('mouseenter', 'vessels-marker', handleMarkerEnter);
+      setLayerVisibility(map, 'ais-marker', aisEnabled);
+      setLayerVisibility(map, 'ais-dot', aisEnabled);
+      setLayerVisibility(map, 'oceanus-marker', oceanusEnabled);
+      setLayerVisibility(map, 'oceanus-tail-line', trackEnabled);
 
-      map.on('mouseleave', 'vessels-marker-outline', handleMarkerLeave);
-      map.on('mouseleave', 'vessels-marker', handleMarkerLeave);
+      map.on('click', 'oceanus-marker', handleMarkerClick);
+      map.on('click', 'ais-marker', handleMarkerClick);
+
+      map.on('mouseenter', 'oceanus-marker', handleMarkerEnter);
+      map.on('mouseenter', 'ais-marker', handleMarkerEnter);
+
+      map.on('mouseleave', 'oceanus-marker', handleMarkerLeave);
+      map.on('mouseleave', 'ais-marker', handleMarkerLeave);
 
       map.setFog({
         color: '#030813',
@@ -301,14 +453,14 @@ function Map() {
 
     return () => {
       if (map) {
-        map.off('click', 'vessels-marker-outline', handleMarkerClick);
-        map.off('click', 'vessels-marker', handleMarkerClick);
+        map.off('click', 'oceanus-marker', handleMarkerClick);
+        map.off('click', 'ais-marker', handleMarkerClick);
 
-        map.off('mouseenter', 'vessels-marker-outline', handleMarkerEnter);
-        map.off('mouseenter', 'vessels-marker', handleMarkerEnter);
+        map.off('mouseenter', 'oceanus-marker', handleMarkerEnter);
+        map.off('mouseenter', 'ais-marker', handleMarkerEnter);
 
-        map.off('mouseleave', 'vessels-marker-outline', handleMarkerLeave);
-        map.off('mouseleave', 'vessels-marker', handleMarkerLeave);
+        map.off('mouseleave', 'oceanus-marker', handleMarkerLeave);
+        map.off('mouseleave', 'ais-marker', handleMarkerLeave);
 
         map.off('mousemove', handleMouseMove);
         map.off('zoom', handleZoom);
@@ -343,6 +495,14 @@ function Map() {
           <span className="map-hud__value">
             {cursorLngLat ? cursorLngLat.lng.toFixed(6) : '—'}
           </span>
+        </div>
+        <div className="map-hud__row">
+          <span className="map-hud__label">Range:</span>
+          <span className="map-hud__value">{rangeLabel}</span>
+        </div>
+        <div className="map-hud__row">
+          <span className="map-hud__label">Bearing:</span>
+          <span className="map-hud__value">{bearingLabel}</span>
         </div>
         <div className="map-hud__row">
           <span className="map-hud__label">Z:</span>
