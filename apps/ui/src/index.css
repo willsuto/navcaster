@@ -119,6 +119,15 @@ body {
     radial-gradient(circle at 82% 86%, rgba(155, 123, 255, 0.16), transparent 40%); */
 }
 
+.wind-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.95;
+  mix-blend-mode: normal;
+}
+
 .map-hud {
   position: absolute;
   right: 16px;
@@ -617,6 +626,86 @@ body {
   border-color: color-mix(in srgb, var(--accent-cyan) 65%, var(--border-default));
   background: color-mix(in srgb, var(--bg-2) 82%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 28%, transparent), var(--glow-cyan);
+}
+
+.routing-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.routing-panel__section {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--bg-3) 62%, transparent);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.routing-panel__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.routing-panel__title {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-violet);
+}
+
+.routing-panel__value {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.routing-panel__status {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.routing-panel__status--error {
+  color: var(--danger);
+}
+
+.routing-panel__slider {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.routing-panel__label {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.routing-panel__input {
+  width: 100%;
+  accent-color: var(--accent-cyan);
+}
+
+.routing-panel__ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.routing-panel__tick {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.routing-panel__tick--active {
+  color: var(--accent-cyan);
+  text-shadow: var(--glow-cyan);
 }
 
 .status-row {

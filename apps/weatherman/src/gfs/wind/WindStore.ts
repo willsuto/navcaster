@@ -18,6 +18,13 @@ export type WindQueryResult = {
   timeInterpolation: number;
 };
 
+export type WindVector = {
+  lat: number;
+  lon: number;
+  u: number;
+  v: number;
+};
+
 type WindSlice = {
   u: Float32Array;
   v: Float32Array;
@@ -205,6 +212,40 @@ export class WindStore {
       wx * wy * v11;
 
     return { u, v };
+  }
+
+  getVectors(forecastHour: number, step = 1) {
+    if (!this.meta || !this.cycle) return null;
+
+    const slice = this.fieldsByHour.get(forecastHour);
+    if (!slice) return null;
+
+    const safeStep = Math.max(1, Math.floor(step));
+    const { nx, ny, lat0, lon0, dlat, dlon } = this.meta;
+    const vectors: WindVector[] = [];
+
+    for (let y = 0; y < ny; y += safeStep) {
+      const lat = lat0 + y * dlat;
+      for (let x = 0; x < nx; x += safeStep) {
+        const rawLon = lon0 + x * dlon;
+        const lon = rawLon > 180 ? rawLon - 360 : rawLon;
+        const idx = y * nx + x;
+        vectors.push({
+          lat,
+          lon,
+          u: slice.u[idx],
+          v: slice.v[idx]
+        });
+      }
+    }
+
+    return {
+      cycle: this.cycle,
+      forecastHour,
+      step: safeStep,
+      grid: this.meta,
+      vectors
+    };
   }
 
   private toDirection(u: number, v: number) {

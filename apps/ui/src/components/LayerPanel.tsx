@@ -4,9 +4,11 @@ function LayerPanel() {
   const aisEnabled = useMapLayersStore((state) => state.aisEnabled);
   const oceanusEnabled = useMapLayersStore((state) => state.oceanusEnabled);
   const trackEnabled = useMapLayersStore((state) => state.trackEnabled);
+  const windEnabled = useMapLayersStore((state) => state.windEnabled);
   const setAisEnabled = useMapLayersStore((state) => state.setAisEnabled);
   const setOceanusEnabled = useMapLayersStore((state) => state.setOceanusEnabled);
   const setTrackEnabled = useMapLayersStore((state) => state.setTrackEnabled);
+  const setWindEnabled = useMapLayersStore((state) => state.setWindEnabled);
 
   return (
     <section className="layer-panel" aria-label="Map layer toggles">
@@ -41,6 +43,17 @@ function LayerPanel() {
           aria-pressed={trackEnabled}
         >
           {trackEnabled ? 'On' : 'Off'}
+        </button>
+      </div>
+      <div className="layer-panel__row">
+        <span className="layer-panel__label">Wind</span>
+        <button
+          type="button"
+          className={`layer-panel__toggle${windEnabled ? ' layer-panel__toggle--active' : ''}`}
+          onClick={() => setWindEnabled(!windEnabled)}
+          aria-pressed={windEnabled}
+        >
+          {windEnabled ? 'On' : 'Off'}
         </button>
       </div>
     </section>

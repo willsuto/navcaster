@@ -4,6 +4,7 @@ import LayerPanel from './components/LayerPanel';
 import LogPanel from './components/LogPanel';
 import Map from './components/Map';
 import PanelWindow from './components/PanelWindow';
+import RoutingPanel from './components/RoutingPanel';
 import { useAisSocket } from './hooks/useAisSocket';
 import { useOceanusTelemetryLogger } from './hooks/useOceanusTelemetryLogger';
 import { useAisVesselStore } from './store/aisVessels';
@@ -47,7 +48,7 @@ function App() {
       if (now - lastLogRef.current < 2000) return;
       lastLogRef.current = now;
       // eslint-disable-next-line no-console
-      console.log('[AIS] vessel update', update);
+      // console.log('[AIS] vessel update', update);
     },
     onStreamStatus: (status) => {
       // eslint-disable-next-line no-console
@@ -140,16 +141,11 @@ function App() {
             title="Routing"
             initialX={120}
             initialY={64}
-            initialWidth={360}
-            initialHeight={240}
+            initialWidth={380}
+            initialHeight={280}
             onClose={() => closePanel('routing')}
           >
-            <section className="panel-placeholder">
-              <h3 className="panel-placeholder__title">Route Planner</h3>
-              <p className="panel-placeholder__text">
-                Configure route waypoints, constraints, and optimization profiles.
-              </p>
-            </section>
+            <RoutingPanel />
           </PanelWindow>
         )}
 

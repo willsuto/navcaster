@@ -5,10 +5,29 @@ import { useVesselFeatureCollection } from '../store/aisGeoJson';
 import { useOceanusTailFeatureCollection } from '../store/oceanusTailGeoJson';
 import { useMapLayersStore } from '../store/mapLayers';
 import { useAisVesselStore } from '../store/aisVessels';
+import { useWindStore } from '../store/wind';
 
 const OCEANUS_MMSI = 999000001;
 const EARTH_RADIUS_METERS = 6371000;
 const METERS_PER_NM = 1852;
+const KNOTS_PER_MS = 1.943844;
+const MAX_WIND_KTS = 50;
+const GFS_CELL_DEGREES = 0.25;
+const WIND_TARGET_PX = 40;
+const MIN_WIND_STEP = 1;
+const MAX_WIND_STEP = 12;
+
+type WindVector = {
+  lat: number;
+  lon: number;
+  u: number;
+  v: number;
+};
+
+type WindVectorResponse = {
+  status: string;
+  vectors?: WindVector[];
+};
 
 const isValidCoordinate = (
   value: number | undefined,
@@ -18,6 +37,72 @@ const isValidCoordinate = (
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const toDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const getWindStepFallback = (zoom: number) => {
+  if (zoom >= 12) return 2;
+  if (zoom >= 10) return 3;
+  if (zoom >= 8) return 4;
+  if (zoom >= 6) return 6;
+  return 8;
+};
+
+const getWindStep = (map: mapboxgl.Map | null, zoom: number) => {
+  if (!map) return getWindStepFallback(zoom);
+
+  const center = map.getCenter();
+  const latitude = clamp(center.lat, -85, 85);
+  const longitude = center.lng;
+  const origin = map.project([longitude, latitude]);
+  const east = map.project([longitude + GFS_CELL_DEGREES, latitude]);
+  const north = map.project([longitude, latitude + GFS_CELL_DEGREES]);
+
+  const eastDistance = Math.hypot(east.x - origin.x, east.y - origin.y);
+  const northDistance = Math.hypot(north.x - origin.x, north.y - origin.y);
+  const cellPx = Math.max(eastDistance, northDistance);
+
+  if (!Number.isFinite(cellPx) || cellPx <= 0) return getWindStepFallback(zoom);
+
+  const step = Math.round(WIND_TARGET_PX / cellPx);
+  return clamp(step, MIN_WIND_STEP, MAX_WIND_STEP);
+};
+
+const getWindColor = (speedKnots: number) => {
+  const stops = [
+    { kt: 0, color: '#2c7bb6' },
+    { kt: 10, color: '#00a6ca' },
+    { kt: 20, color: '#00ccbc' },
+    { kt: 30, color: '#90eb9d' },
+    { kt: 40, color: '#f9d057' },
+    { kt: 50, color: '#f29e2e' }
+  ];
+
+  const clamped = clamp(speedKnots, 0, MAX_WIND_KTS);
+  const upperIndex = stops.findIndex((stop) => clamped <= stop.kt);
+  if (upperIndex <= 0) return stops[0].color;
+
+  const lower = stops[upperIndex - 1];
+  const upper = stops[upperIndex];
+  const t = upper.kt === lower.kt ? 0 : (clamped - lower.kt) / (upper.kt - lower.kt);
+
+  const lerp = (a: number, b: number) => Math.round(a + (b - a) * t);
+  const parse = (color: string) => {
+    const value = color.replace('#', '');
+    return [
+      parseInt(value.slice(0, 2), 16),
+      parseInt(value.slice(2, 4), 16),
+      parseInt(value.slice(4, 6), 16)
+    ];
+  };
+
+  const [r1, g1, b1] = parse(lower.color);
+  const [r2, g2, b2] = parse(upper.color);
+  const r = lerp(r1, r2);
+  const g = lerp(g1, g2);
+  const b = lerp(b1, b2);
+  return `rgb(${r}, ${g}, ${b})`;
+};
 
 const distanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const dLat = toRadians(lat2 - lat1);
@@ -60,6 +145,12 @@ function Map() {
   const aisEnabled = useMapLayersStore((state) => state.aisEnabled);
   const oceanusEnabled = useMapLayersStore((state) => state.oceanusEnabled);
   const trackEnabled = useMapLayersStore((state) => state.trackEnabled);
+  const windEnabled = useMapLayersStore((state) => state.windEnabled);
+  const selectedForecastHour = useWindStore((state) => state.selectedForecastHour);
+  const windCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const windVectorsRef = useRef<WindVector[]>([]);
+  const windEnabledRef = useRef(false);
+  const [windVectors, setWindVectors] = useState<WindVector[]>([]);
   const oceanus = useAisVesselStore((state) => state.vessels[String(OCEANUS_MMSI)]);
 
   const oceanusPosition = useMemo(() => {
@@ -101,6 +192,143 @@ function Map() {
     if (!map.getLayer(layerId)) return;
     map.setLayoutProperty(layerId, 'visibility', enabled ? 'visible' : 'none');
   };
+
+  const drawWindBarb = (
+    context: CanvasRenderingContext2D,
+    speedKnots: number,
+    length: number
+  ) => {
+    const roundedSpeed = Math.max(0, Math.round(speedKnots / 5) * 5);
+    const flags = Math.floor(roundedSpeed / 50);
+    const tens = Math.floor((roundedSpeed % 50) / 10);
+    const hasHalf = roundedSpeed % 10 >= 5;
+
+    const barbAngle = Math.PI / 3;
+    const barbLength = 11;
+    const halfBarbLength = barbLength * 0.6;
+    const flagLength = 16;
+    const barbSpacing = 5;
+    const flagSpacing = 8;
+    const barbDx = Math.cos(barbAngle) * barbLength;
+    const barbDy = -Math.sin(barbAngle) * barbLength;
+    const flagDx = Math.cos(barbAngle) * flagLength;
+    const flagDy = -Math.sin(barbAngle) * flagLength;
+
+    context.beginPath();
+    context.moveTo(0, 0);
+    context.lineTo(0, -length);
+    context.stroke();
+
+    let offset = 0;
+
+    for (let i = 0; i < flags; i += 1) {
+      context.beginPath();
+      context.moveTo(0, offset);
+      context.lineTo(flagDx, offset + flagDy);
+      context.lineTo(0, offset + flagDy * 2);
+      context.closePath();
+      context.fill();
+      offset -= flagSpacing;
+    }
+
+    for (let i = 0; i < tens; i += 1) {
+      context.beginPath();
+      context.moveTo(0, offset);
+      context.lineTo(barbDx, offset + barbDy);
+      context.stroke();
+      offset -= barbSpacing;
+    }
+
+    if (hasHalf) {
+      const halfDx = Math.cos(barbAngle) * halfBarbLength;
+      const halfDy = -Math.sin(barbAngle) * halfBarbLength;
+      context.beginPath();
+      context.moveTo(0, offset);
+      context.lineTo(halfDx, offset + halfDy);
+      context.stroke();
+    }
+  };
+
+  const drawWindVectors = () => {
+    const map = mapRef.current;
+    const canvas = windCanvasRef.current;
+    if (!map || !canvas) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (!windEnabledRef.current) return;
+
+    const bounds = map.getBounds();
+    if (!bounds) return;
+    const vectors = windVectorsRef.current;
+
+    for (const vector of vectors) {
+      if (!bounds.contains([vector.lon, vector.lat])) continue;
+
+      const point = map.project([vector.lon, vector.lat]);
+      const speedKnots = Math.hypot(vector.u, vector.v) * KNOTS_PER_MS;
+      const color = getWindColor(speedKnots);
+      const length = clamp(16 + speedKnots * 0.25, 16, 34);
+      const angle = Math.atan2(vector.u, vector.v);
+
+      context.save();
+      context.translate(point.x, point.y);
+      context.rotate(angle);
+      context.strokeStyle = color;
+      context.fillStyle = color;
+      context.lineWidth = 1.6;
+
+      drawWindBarb(context, speedKnots, length);
+
+      context.restore();
+    }
+  };
+
+  useEffect(() => {
+    windEnabledRef.current = windEnabled;
+    if (!windEnabled) {
+      setWindVectors([]);
+    }
+    drawWindVectors();
+  }, [windEnabled]);
+
+  useEffect(() => {
+    windVectorsRef.current = windVectors;
+    drawWindVectors();
+  }, [windVectors]);
+
+  useEffect(() => {
+    if (!windEnabled || selectedForecastHour === null) {
+      setWindVectors([]);
+      return;
+    }
+
+    const step = getWindStep(mapRef.current, zoom ?? 0);
+    const controller = new AbortController();
+
+    const loadVectors = async () => {
+      try {
+        const response = await fetch(
+          `/api/gfs/wind/vectors?fh=${selectedForecastHour}&step=${step}`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        const data = (await response.json()) as WindVectorResponse;
+        setWindVectors(Array.isArray(data.vectors) ? data.vectors : []);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        console.warn('Failed to load wind vectors.', err);
+        setWindVectors([]);
+      }
+    };
+
+    loadVectors();
+
+    return () => controller.abort();
+  }, [windEnabled, selectedForecastHour, zoom]);
 
   useEffect(() => {
     vesselDataRef.current = vesselData;
@@ -167,6 +395,32 @@ function Map() {
     });
 
     mapRef.current = map;
+
+    const windCanvas = document.createElement('canvas');
+    windCanvas.className = 'wind-overlay';
+    windCanvasRef.current = windCanvas;
+    const canvasContainer = map.getCanvasContainer();
+    canvasContainer.appendChild(windCanvas);
+
+    const resizeWindCanvas = () => {
+      // map.getCanvasContainer() can report 0 height depending on CSS/layout.
+      // Use the actual map canvas size as the source of truth.
+      const rect = map.getCanvas().getBoundingClientRect();
+      const clientWidth = Math.round(rect.width);
+      const clientHeight = Math.round(rect.height);
+
+      const dpr = window.devicePixelRatio || 1;
+      windCanvas.width = Math.max(1, Math.round(clientWidth * dpr));
+      windCanvas.height = Math.max(1, Math.round(clientHeight * dpr));
+      windCanvas.style.width = `${clientWidth}px`;
+      windCanvas.style.height = `${clientHeight}px`;
+
+      const context = windCanvas.getContext('2d');
+      if (context) {
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.lineCap = 'round';
+      }
+    };
 
     const nav = new mapboxgl.NavigationControl({ showCompass: true, showZoom: false });
     map.addControl(nav, 'top-right');
@@ -258,6 +512,7 @@ function Map() {
     const handleZoom = () => {
       setZoom(map.getZoom());
       updateScaleIndicator();
+      drawWindVectors();
     };
 
     map.on('load', () => {
@@ -444,12 +699,21 @@ function Map() {
       });
 
       updateScaleIndicator();
+      resizeWindCanvas();
+      drawWindVectors();
     });
 
     setZoom(map.getZoom());
+    const handleResize = () => {
+      updateScaleIndicator();
+      resizeWindCanvas();
+      drawWindVectors();
+    };
+
     map.on('mousemove', handleMouseMove);
+    map.on('move', drawWindVectors);
     map.on('zoom', handleZoom);
-    map.on('resize', updateScaleIndicator);
+    map.on('resize', handleResize);
 
     return () => {
       if (map) {
@@ -463,8 +727,9 @@ function Map() {
         map.off('mouseleave', 'ais-marker', handleMarkerLeave);
 
         map.off('mousemove', handleMouseMove);
+        map.off('move', drawWindVectors);
         map.off('zoom', handleZoom);
-        map.off('resize', updateScaleIndicator);
+        map.off('resize', handleResize);
       }
       if (popupRef.current) {
         popupRef.current.remove();
@@ -473,6 +738,10 @@ function Map() {
       if (scaleControlRef.current) {
         map.removeControl(scaleControlRef.current);
         scaleControlRef.current = null;
+      }
+      if (windCanvasRef.current) {
+        windCanvasRef.current.remove();
+        windCanvasRef.current = null;
       }
       map.remove();
       mapRef.current = null;

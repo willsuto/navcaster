@@ -160,6 +160,30 @@ app.get('/api/gfs/wind/query', (req, res) => {
   res.json({ status: 'ok', ...result });
 });
 
+app.get('/api/gfs/wind/vectors', (req, res) => {
+  const forecastHour = Number(req.query.fh);
+  const stepParam = req.query.step;
+
+  if (!Number.isFinite(forecastHour)) {
+    res.status(400).json({ status: 'error', message: 'Provide fh query param (e.g. fh=3).' });
+    return;
+  }
+
+  const step = stepParam === undefined ? 1 : Number(stepParam);
+  if (!Number.isFinite(step) || step <= 0) {
+    res.status(400).json({ status: 'error', message: 'step must be a positive number.' });
+    return;
+  }
+
+  const result = windStore.getVectors(forecastHour, step);
+  if (!result) {
+    res.status(404).json({ status: 'error', message: 'Wind vectors not available.' });
+    return;
+  }
+
+  res.json({ status: 'ok', ...result });
+});
+
 app.post('/api/gfs/wind/reload', async (req, res) => {
   try {
     const date = typeof req.query.date === 'string' ? req.query.date : undefined;
