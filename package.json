@@ -9,9 +9,11 @@
     "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w ui\"",
     "dev:ui": "npm run dev -w ui",
     "dev:server": "npm run dev -w server",
+    "dev:weatherman": "npm run dev -w weatherman",
     "build": "npm run build --workspaces --if-present",
     "build:ui": "npm run build -w ui",
-    "build:server": "npm run build -w server"
+    "build:server": "npm run build -w server",
+    "build:weatherman": "npm run build -w weatherman"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

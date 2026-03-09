@@ -13,6 +13,9 @@ coverage/
 .env.*
 !.env.example
 
+# Weatherman data cache
+apps/weatherman/data/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
