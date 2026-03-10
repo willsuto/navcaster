@@ -6,6 +6,7 @@ import { useOceanusTailFeatureCollection } from '../store/oceanusTailGeoJson';
 import { useMapLayersStore } from '../store/mapLayers';
 import { useAisVesselStore } from '../store/aisVessels';
 import { useWindStore } from '../store/wind';
+import { useRouteStore, type RouteWaypoint } from '../store/route';
 
 const OCEANUS_MMSI = 999000001;
 const EARTH_RADIUS_METERS = 6371000;
@@ -39,6 +40,7 @@ const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const toDegrees = (radians: number) => (radians * 180) / Math.PI;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const normalizeLon = (lon: number) => ((lon + 180) % 360 + 360) % 360 - 180;
 
 const getWindStepFallback = (zoom: number) => {
   if (zoom >= 12) return 2;
@@ -104,6 +106,32 @@ const getWindColor = (speedKnots: number) => {
   return `rgb(${r}, ${g}, ${b})`;
 };
 
+const interpolateGhostPosition = (waypoints: RouteWaypoint[], timeMs: number) => {
+  if (waypoints.length === 0) return null;
+
+  const first = waypoints[0];
+  const last = waypoints[waypoints.length - 1];
+  if (timeMs <= first.timeMs) return { lat: first.lat, lon: first.lon };
+  if (timeMs >= last.timeMs) return { lat: last.lat, lon: last.lon };
+
+  for (let i = 0; i < waypoints.length - 1; i += 1) {
+    const lower = waypoints[i];
+    const upper = waypoints[i + 1];
+    if (timeMs < lower.timeMs || timeMs > upper.timeMs) continue;
+    const span = upper.timeMs - lower.timeMs;
+    const t = span === 0 ? 0 : (timeMs - lower.timeMs) / span;
+    const lat = lower.lat + (upper.lat - lower.lat) * t;
+    let dLon = upper.lon - lower.lon;
+    if (Math.abs(dLon) > 180) {
+      dLon = dLon > 0 ? dLon - 360 : dLon + 360;
+    }
+    const lon = normalizeLon(lower.lon + dLon * t);
+    return { lat, lon };
+  }
+
+  return { lat: last.lat, lon: last.lon };
+};
+
 const distanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const dLat = toRadians(lat2 - lat1);
   const dLon = toRadians(lon2 - lon1);
@@ -152,6 +180,8 @@ function Map() {
   const windEnabledRef = useRef(false);
   const [windVectors, setWindVectors] = useState<WindVector[]>([]);
   const oceanus = useAisVesselStore((state) => state.vessels[String(OCEANUS_MMSI)]);
+  const route = useRouteStore((state) => state.route);
+  const windCycle = useWindStore((state) => state.cycle);
 
   const oceanusPosition = useMemo(() => {
     const latitude = oceanus?.latitude;
@@ -297,6 +327,64 @@ function Map() {
     windVectorsRef.current = windVectors;
     drawWindVectors();
   }, [windVectors]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource('route') as mapboxgl.GeoJSONSource | undefined;
+    if (!source) return;
+    source.setData(
+      route ?? {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: []
+        },
+        properties: {}
+      }
+    );
+  }, [route]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource('route-ghost') as mapboxgl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    const emptyData: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+    if (!route || !route.properties?.waypoints || !route.properties.waypoints.length) {
+      source.setData(emptyData);
+      return;
+    }
+    if (!windCycle || selectedForecastHour === null) {
+      source.setData(emptyData);
+      return;
+    }
+
+    const cycleStartMs = Date.UTC(
+      Number(windCycle.date.slice(0, 4)),
+      Number(windCycle.date.slice(4, 6)) - 1,
+      Number(windCycle.date.slice(6, 8)),
+      Number(windCycle.cycle)
+    );
+    const ghostTimeMs = cycleStartMs + selectedForecastHour * 60 * 60 * 1000;
+    const position = interpolateGhostPosition(route.properties.waypoints, ghostTimeMs);
+    if (!position) {
+      source.setData(emptyData);
+      return;
+    }
+
+    source.setData({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [position.lon, position.lat]
+      },
+      properties: {
+        timeMs: ghostTimeMs
+      }
+    });
+  }, [route, selectedForecastHour, windCycle]);
 
   useEffect(() => {
     if (!windEnabled || selectedForecastHour === null) {
@@ -534,6 +622,26 @@ function Map() {
         data: tailDataRef.current
       });
 
+      map.addSource('route', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: []
+          },
+          properties: {}
+        }
+      });
+
+      map.addSource('route-ghost', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
       // Ship silhouette SDF icon (forward points up so existing icon-rotate continues to work).
       let vesselIconId = 'ship-sdf';
 
@@ -680,6 +788,34 @@ function Map() {
       setLayerVisibility(map, 'ais-dot', aisEnabled);
       setLayerVisibility(map, 'oceanus-marker', oceanusEnabled);
       setLayerVisibility(map, 'oceanus-tail-line', trackEnabled);
+
+      map.addLayer({
+        id: 'route-line',
+        type: 'line',
+        source: 'route',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#ffafcc',
+          'line-width': 3.5,
+          'line-opacity': 0.9
+        }
+      });
+
+      map.addLayer({
+        id: 'route-ghost',
+        type: 'circle',
+        source: 'route-ghost',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#4cc9f0',
+          'circle-opacity': 0.9,
+          'circle-stroke-color': '#bfe9f6',
+          'circle-stroke-width': 1.5
+        }
+      });
 
       map.on('click', 'oceanus-marker', handleMarkerClick);
       map.on('click', 'ais-marker', handleMarkerClick);

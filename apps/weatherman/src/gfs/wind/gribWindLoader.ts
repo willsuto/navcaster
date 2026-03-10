@@ -51,14 +51,23 @@ const readFloat32Array = (buffer: Buffer) => {
   return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
 };
 
-export const loadWindField = async (filePath: string): Promise<WindField> => {
+const loadMatchedWindField = async (
+  filePath: string,
+  gridMatch: string,
+  uMatch: string,
+  vMatch: string
+): Promise<WindField | null> => {
   const gridOutput = await runWgrib2Text([
     filePath,
     '-match',
-    ':(U|V)GRD:10 m above ground:',
+    gridMatch,
     '-grid',
     '-one_line'
   ]);
+
+  if (!gridOutput.trim()) {
+    return null;
+  }
 
   const gridLine = gridOutput.trim().split('\n')[0];
   const meta = parseGridLine(gridLine);
@@ -66,7 +75,7 @@ export const loadWindField = async (filePath: string): Promise<WindField> => {
   const uBuffer = await runWgrib2Buffer([
     filePath,
     '-match',
-    ':UGRD:10 m above ground:',
+    uMatch,
     '-inv',
     '/dev/null',
     '-no_header',
@@ -77,7 +86,7 @@ export const loadWindField = async (filePath: string): Promise<WindField> => {
   const vBuffer = await runWgrib2Buffer([
     filePath,
     '-match',
-    ':VGRD:10 m above ground:',
+    vMatch,
     '-inv',
     '/dev/null',
     '-no_header',
@@ -96,4 +105,33 @@ export const loadWindField = async (filePath: string): Promise<WindField> => {
   }
 
   return { meta, u, v };
+};
+
+export const loadWindField = async (filePath: string): Promise<WindField> => {
+  const wind10m = await loadMatchedWindField(
+    filePath,
+    ':(U|V)GRD:10 m above ground:',
+    ':UGRD:10 m above ground:',
+    ':VGRD:10 m above ground:'
+  );
+
+  if (wind10m) {
+    return wind10m;
+  }
+
+  const windPbl = await loadMatchedWindField(
+    filePath,
+    ':(U|V)GRD:planetary boundary layer:',
+    ':UGRD:planetary boundary layer:',
+    ':VGRD:planetary boundary layer:'
+  );
+
+  if (windPbl) {
+    return windPbl;
+  }
+
+  throw new Error(
+    `Unable to parse grid metadata: wgrib2 returned no grid lines for ${filePath}. ` +
+      'Verify the file is a valid GFS GRIB2 and WGRIB2_PATH is configured.'
+  );
 };

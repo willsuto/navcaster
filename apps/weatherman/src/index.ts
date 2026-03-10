@@ -11,6 +11,7 @@ import {
   getForecastFilePath
 } from './gfs/storage';
 import { WindStore } from './gfs/wind/WindStore';
+import { computeIsochroneRoute, type PolarTable } from './routing/isochroneRouter';
 
 dotenv.config();
 
@@ -182,6 +183,123 @@ app.get('/api/gfs/wind/vectors', (req, res) => {
   }
 
   res.json({ status: 'ok', ...result });
+});
+
+app.post('/api/gfs/route', async (req, res) => {
+  if (!windStore.isReady()) {
+    res.status(503).json({ status: 'error', message: 'Wind data not ready yet.' });
+    return;
+  }
+
+  const { start, finish, polarTable, startForecastHour, startTime, dtMinutes, headingStepDeg, maxHours, maxFrontier, arrivalRadiusMeters } =
+    (req.body ?? {}) as {
+      start?: { lat?: number; lon?: number };
+      finish?: { lat?: number; lon?: number };
+      polarTable?: PolarTable;
+      startForecastHour?: number;
+      startTime?: string;
+      dtMinutes?: number;
+      headingStepDeg?: number;
+      maxHours?: number;
+      maxFrontier?: number;
+      arrivalRadiusMeters?: number;
+    };
+
+  const startLat = start?.lat;
+  const startLon = start?.lon;
+  const finishLat = finish?.lat;
+  const finishLon = finish?.lon;
+
+  if (!Number.isFinite(startLat) || !Number.isFinite(startLon)) {
+    res.status(400).json({ status: 'error', message: 'Provide start lat/lon.' });
+    return;
+  }
+  if (!Number.isFinite(finishLat) || !Number.isFinite(finishLon)) {
+    res.status(400).json({ status: 'error', message: 'Provide finish lat/lon.' });
+    return;
+  }
+  if (!polarTable || typeof polarTable !== 'object') {
+    res.status(400).json({ status: 'error', message: 'Provide polarTable.' });
+    return;
+  }
+
+  const startLatValue = Number(startLat);
+  const startLonValue = Number(startLon);
+  const finishLatValue = Number(finishLat);
+  const finishLonValue = Number(finishLon);
+
+  let resolvedStartTime = startTime;
+  if (!resolvedStartTime) {
+    if (!Number.isFinite(startForecastHour)) {
+      res.status(400).json({ status: 'error', message: 'Provide startTime or startForecastHour.' });
+      return;
+    }
+    const meta = windStore.getMeta();
+    if (!meta.cycle) {
+      res.status(400).json({ status: 'error', message: 'Wind cycle not loaded.' });
+      return;
+    }
+    const cycleStart = Date.UTC(
+      Number(meta.cycle.date.slice(0, 4)),
+      Number(meta.cycle.date.slice(4, 6)) - 1,
+      Number(meta.cycle.date.slice(6, 8)),
+      Number(meta.cycle.cycle)
+    );
+    const forecastHourValue = Number(startForecastHour);
+    resolvedStartTime = new Date(cycleStart + forecastHourValue * 60 * 60 * 1000).toISOString();
+  }
+
+  const result = await computeIsochroneRoute(windStore, {
+    start: { lat: startLatValue, lon: startLonValue },
+    finish: { lat: finishLatValue, lon: finishLonValue },
+    polarTable,
+    startTime: resolvedStartTime,
+    dtMinutes: Number.isFinite(dtMinutes) ? Math.max(1, Number(dtMinutes)) : 10,
+    headingStepDeg: Number.isFinite(headingStepDeg) ? Math.max(1, Number(headingStepDeg)) : 5,
+    maxHours: Number.isFinite(maxHours) ? Math.max(1, Number(maxHours)) : 120,
+    maxFrontier: Number.isFinite(maxFrontier) ? Math.max(50, Number(maxFrontier)) : 600,
+    arrivalRadiusMeters: Number.isFinite(arrivalRadiusMeters) ? Math.max(100, Number(arrivalRadiusMeters)) : 20000
+  });
+
+  if (!result) {
+    res.status(400).json({
+      status: 'error',
+      message: 'Unable to compute route. Check start time/forecast hour and wind availability.'
+    });
+    return;
+  }
+
+  const coordinates = result.pathIndices.map((index) => {
+    const node = result.nodes[index];
+    return [node.lon, node.lat];
+  });
+  const waypoints = result.pathIndices.map((index) => {
+    const node = result.nodes[index];
+    return { lon: node.lon, lat: node.lat, timeMs: node.timeMs };
+  });
+  coordinates.push([finishLonValue, finishLatValue]);
+
+  res.json({
+    status: 'ok',
+    route: {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates
+      },
+      properties: {
+        durationHours: result.durationHours,
+        distanceNm: result.distanceNm,
+        eta: result.eta,
+        iterations: result.iterations,
+        frontierMax: result.frontierMax,
+        arrived: result.arrived,
+        closestApproachMeters: result.closestApproachMeters,
+        terminationReason: result.terminationReason,
+        waypoints
+      }
+    }
+  });
 });
 
 app.post('/api/gfs/wind/reload', async (req, res) => {

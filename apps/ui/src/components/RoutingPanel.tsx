@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useWindStore } from '../store/wind';
+import PolarEditor from './PolarEditor';
+import { useWindStore, type WindCycle } from '../store/wind';
+import { usePolarStore } from '../store/polar';
+import { useRouteStore, type RouteFeature } from '../store/route';
+
+// Sydney to North Cape of NZ
+const DEFAULT_START = { lat: -33.84, lon: 151.34 };
+const DEFAULT_FINISH = { lat: -34.39, lon: 172.51 };
 
 type WindMetaResponse = {
   status: string;
   forecastHours?: number[];
+  cycle?: WindCycle;
+};
+
+type RouteResponse = {
+  status: string;
+  route?: RouteFeature;
+  message?: string;
 };
 
 function RoutingPanel() {
@@ -11,8 +25,14 @@ function RoutingPanel() {
   const selectedForecastHour = useWindStore((state) => state.selectedForecastHour);
   const setForecastHours = useWindStore((state) => state.setForecastHours);
   const setSelectedForecastHour = useWindStore((state) => state.setSelectedForecastHour);
+  const setCycle = useWindStore((state) => state.setCycle);
+  const polarTable = usePolarStore((state) => state.table);
+  const route = useRouteStore((state) => state.route);
+  const setRoute = useRouteStore((state) => state.setRoute);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [routeStatus, setRouteStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -26,6 +46,7 @@ function RoutingPanel() {
           throw new Error('No forecast hours available.');
         }
         setForecastHours(data.forecastHours);
+        setCycle(data.cycle ?? null);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load wind metadata.');
@@ -35,7 +56,7 @@ function RoutingPanel() {
     };
 
     loadMeta();
-  }, [setForecastHours]);
+  }, [setForecastHours, setCycle]);
 
   const sliderIndex = useMemo(() => {
     if (forecastHours.length === 0) return 0;
@@ -53,6 +74,45 @@ function RoutingPanel() {
   };
 
   const forecastLabel = selectedForecastHour !== null ? `${selectedForecastHour}h` : '—';
+
+  const handleRoute = async () => {
+    if (selectedForecastHour === null) {
+      setRouteError('Select a forecast hour first.');
+      return;
+    }
+
+    setRouteStatus('loading');
+    setRouteError(null);
+
+    try {
+      const response = await fetch('/api/gfs/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start: DEFAULT_START,
+          finish: DEFAULT_FINISH,
+          polarTable,
+          startForecastHour: selectedForecastHour
+        })
+      });
+
+      const data = (await response.json()) as RouteResponse;
+      if (!response.ok || data.status !== 'ok' || !data.route) {
+        throw new Error(data.message ?? `Routing failed with status ${response.status}.`);
+      }
+
+      setRoute(data.route);
+      setRouteStatus('done');
+    } catch (err) {
+      setRoute(null);
+      setRouteStatus('idle');
+      setRouteError(err instanceof Error ? err.message : 'Unable to compute route.');
+    }
+  };
+
+  const closestApproachNm = route?.properties?.closestApproachMeters
+    ? route.properties.closestApproachMeters / 1852
+    : null;
 
   return (
     <section className="routing-panel" aria-label="Routing controls">
@@ -93,6 +153,77 @@ function RoutingPanel() {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="routing-panel__section">
+        <div className="routing-panel__header">
+          <h3 className="routing-panel__title">Polars</h3>
+        </div>
+        <div className="routing-panel__polar">
+          <PolarEditor />
+        </div>
+      </div>
+
+      <div className="routing-panel__section">
+        <div className="routing-panel__header">
+          <h3 className="routing-panel__title">Route</h3>
+        </div>
+        <div className="routing-panel__summary">
+          <div>
+            <span className="routing-panel__label">Start</span>
+            <span className="routing-panel__value">
+              {DEFAULT_START.lat.toFixed(2)}, {DEFAULT_START.lon.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            <span className="routing-panel__label">Finish</span>
+            <span className="routing-panel__value">
+              {DEFAULT_FINISH.lat.toFixed(2)}, {DEFAULT_FINISH.lon.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="routing-panel__button"
+          onClick={handleRoute}
+          disabled={routeStatus === 'loading'}
+        >
+          {routeStatus === 'loading' ? 'Routing…' : 'Compute route'}
+        </button>
+
+        {routeError && <p className="routing-panel__status routing-panel__status--error">{routeError}</p>}
+
+        {route && route.properties && (
+          <div className="routing-panel__summary">
+            <div>
+              <span className="routing-panel__label">ETA</span>
+              <span className="routing-panel__value">
+                {new Date(route.properties.eta).toLocaleString()}
+              </span>
+            </div>
+            <div>
+              <span className="routing-panel__label">Duration</span>
+              <span className="routing-panel__value">
+                {route.properties.durationHours.toFixed(1)} h
+              </span>
+            </div>
+            <div>
+              <span className="routing-panel__label">Distance</span>
+              <span className="routing-panel__value">
+                {route.properties.distanceNm.toFixed(1)} nm
+              </span>
+            </div>
+            {!route.properties.arrived && closestApproachNm !== null && (
+              <div>
+                <span className="routing-panel__label">Status</span>
+                <span className="routing-panel__value">
+                  Partial route (closest approach: {closestApproachNm.toFixed(1)} nm)
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

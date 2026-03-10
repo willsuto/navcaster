@@ -708,6 +708,143 @@ body {
   text-shadow: var(--glow-cyan);
 }
 
+.routing-panel__polar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.routing-panel__summary {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.routing-panel__summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.routing-panel__button {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--accent-violet) 45%, var(--border-default));
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+
+.routing-panel__button:hover {
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 12px rgba(155, 123, 255, 0.35);
+}
+
+.routing-panel__button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.polar-diagram {
+  width: 100%;
+  max-width: 260px;
+  aspect-ratio: 1 / 1;
+  justify-self: center;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-3) 65%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+}
+
+.polar-diagram__ring,
+.polar-diagram__spoke {
+  fill: none;
+  stroke: color-mix(in srgb, var(--border-strong) 65%, transparent);
+  stroke-width: 1;
+}
+
+.polar-diagram__curve {
+  fill-opacity: 0.2;
+  stroke-width: 2.2;
+  fill: transparent;
+}
+
+.polar-diagram__curve--10 {
+  stroke: var(--accent-cyan);
+  fill: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+  filter: drop-shadow(0 0 8px rgba(49, 214, 255, 0.35));
+}
+
+.polar-diagram__curve--30 {
+  stroke: var(--accent-violet);
+  fill: color-mix(in srgb, var(--accent-violet) 25%, transparent);
+  filter: drop-shadow(0 0 8px rgba(155, 123, 255, 0.35));
+}
+
+.polar-diagram__curve--50 {
+  stroke: var(--accent-green);
+  fill: color-mix(in srgb, var(--accent-green) 18%, transparent);
+  filter: drop-shadow(0 0 8px rgba(72, 255, 123, 0.35));
+}
+
+.polar-editor {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.polar-editor__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.polar-editor__table th,
+.polar-editor__table td {
+  border: 1px solid var(--border-subtle);
+  padding: 0.35rem 0.4rem;
+  text-align: center;
+  font-size: 0.65rem;
+}
+
+.polar-editor__corner,
+.polar-editor__heading,
+.polar-editor__angle {
+  background: color-mix(in srgb, var(--bg-2) 85%, transparent);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.polar-editor__input {
+  width: 100%;
+  background: color-mix(in srgb, var(--bg-3) 70%, transparent);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 0.15rem 0.2rem;
+  font-size: 0.65rem;
+  text-align: center;
+}
+
+.polar-editor__input:focus {
+  outline: 1px solid var(--accent-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+.polar-editor__note {
+  margin: 0;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
 .status-row {
   margin: 0.35rem 0;
 }

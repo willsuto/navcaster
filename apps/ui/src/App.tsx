@@ -141,8 +141,8 @@ function App() {
             title="Routing"
             initialX={120}
             initialY={64}
-            initialWidth={380}
-            initialHeight={280}
+            initialWidth={460}
+            initialHeight={520}
             onClose={() => closePanel('routing')}
           >
             <RoutingPanel />
