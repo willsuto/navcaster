@@ -171,7 +171,7 @@ export const createAisStreamConnector = (options: AisStreamConnectorOptions): Ai
       setConnected(true);
       socket?.send(JSON.stringify(subscriptionPayload));
       // eslint-disable-next-line no-console
-      console.log('Connected to AISStream.');
+
     });
 
     socket.on('message', (data) => {
@@ -184,7 +184,6 @@ export const createAisStreamConnector = (options: AisStreamConnectorOptions): Ai
       setConnected(false);
       scheduleReconnect();
       // eslint-disable-next-line no-console
-      console.warn('AISStream connection closed. Reconnecting...');
     });
 
     socket.on('error', (error) => {
