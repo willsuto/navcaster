@@ -11,6 +11,7 @@ export type RouteProperties = {
   distanceNm: number;
   eta: string;
   iterations: number;
+  nodesExpanded: number;
   frontierMax: number;
   arrived: boolean;
   closestApproachMeters: number;

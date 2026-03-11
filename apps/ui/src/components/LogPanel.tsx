@@ -124,9 +124,6 @@ function LogPanel() {
       <header className="telemetry-log__header">
         <div>
           <div className="telemetry-log__title">Oceanus Log</div>
-          <div className="telemetry-log__meta">
-            Entries: {entryCount} (last {RETENTION_MINUTES} min)
-          </div>
         </div>
         <div className="telemetry-log__view-toggle" role="group" aria-label="Log view">
           <button
@@ -201,7 +198,7 @@ function LogPanel() {
               },
               {
                 key: 'cog',
-                label: 'COG (° unwrapped)',
+                label: 'COG (°)',
                 values: graphData.samples.map((sample) => ({
                   t: sample.t,
                   value: sample.cogUnwrapped

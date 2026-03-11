@@ -292,6 +292,7 @@ app.post('/api/gfs/route', async (req, res) => {
         distanceNm: result.distanceNm,
         eta: result.eta,
         iterations: result.iterations,
+        nodesExpanded: result.nodesExpanded,
         frontierMax: result.frontierMax,
         arrived: result.arrived,
         closestApproachMeters: result.closestApproachMeters,

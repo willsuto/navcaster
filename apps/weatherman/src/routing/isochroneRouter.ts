@@ -38,6 +38,7 @@ export type RouteResult = {
   distanceNm: number;
   eta: string;
   iterations: number;
+  nodesExpanded: number;
   frontierMax: number;
   arrived: boolean;
   closestApproachMeters: number;
@@ -267,6 +268,7 @@ export const computeIsochroneRoute = async (
   let bestSoFarDistance = startDistance;
   let terminationReason: RouteResult['terminationReason'] | null = null;
   let frontierMax = frontier.length;
+  let nodesExpanded = 0;
 
   for (let step = 0; step < maxSteps; step += 1) {
     const nextCandidates: number[] = [];
@@ -274,6 +276,7 @@ export const computeIsochroneRoute = async (
     let producedCandidate = false;
     for (const nodeIndex of frontier) {
       const node = nodes[nodeIndex];
+      nodesExpanded += 1;
       const time = new Date(node.timeMs).toISOString();
       const wind = windStore.query({ lat: node.lat, lon: node.lon, time });
       if (!wind) continue;
@@ -390,6 +393,7 @@ export const computeIsochroneRoute = async (
     distanceNm: distanceTotal / 1852,
     eta: new Date(finalNode.timeMs).toISOString(),
     iterations: pathIndices.length,
+    nodesExpanded,
     frontierMax,
     arrived: bestArrival !== null,
     closestApproachMeters: bestSoFarDistance,

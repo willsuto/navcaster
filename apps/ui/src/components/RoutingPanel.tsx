@@ -216,6 +216,14 @@ function RoutingPanel() {
                 {route.properties.distanceNm.toFixed(1)} nm
               </span>
             </div>
+            {Number.isFinite(route.properties.nodesExpanded) && (
+              <div>
+                <span className="routing-panel__label">Grid points analyzed</span>
+                <span className="routing-panel__value">
+                  {route.properties.nodesExpanded.toLocaleString()}
+                </span>
+              </div>
+            )}
             {!route.properties.arrived && closestApproachNm !== null && (
               <div>
                 <span className="routing-panel__label">Status</span>

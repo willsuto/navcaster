@@ -25,6 +25,11 @@ export type WindVector = {
   v: number;
 };
 
+export type WindLoadError = {
+  hour: number;
+  message: string;
+};
+
 type WindSlice = {
   u: Float32Array;
   v: Float32Array;
@@ -35,12 +40,14 @@ export class WindStore {
   private cycle?: Cycle;
   private forecastHours: number[] = [];
   private fieldsByHour = new Map<number, WindSlice>();
+  private loadErrors: WindLoadError[] = [];
 
   getMeta() {
     return {
       cycle: this.cycle,
       forecastHours: [...this.forecastHours],
-      grid: this.meta
+      grid: this.meta,
+      loadErrors: [...this.loadErrors]
     };
   }
 
@@ -54,22 +61,35 @@ export class WindStore {
     this.meta = undefined;
     this.cycle = cycle;
     this.forecastHours = [];
+    this.loadErrors = [];
 
     for (const hour of hours) {
-      const filePath = getForecastFilePath(cycle, hour);
-      const field: WindField = await loadWindField(filePath);
+      try {
+        const filePath = getForecastFilePath(cycle, hour);
+        const field: WindField = await loadWindField(filePath);
 
-      if (!this.meta) {
-        this.meta = field.meta;
-      } else {
-        this.assertCompatibleGrid(field.meta);
+        if (!this.meta) {
+          this.meta = field.meta;
+        } else {
+          this.assertCompatibleGrid(field.meta);
+        }
+
+        this.fieldsByHour.set(hour, { u: field.u, v: field.v });
+        this.forecastHours.push(hour);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.loadErrors.push({ hour, message });
       }
-
-      this.fieldsByHour.set(hour, { u: field.u, v: field.v });
-      this.forecastHours.push(hour);
     }
 
     this.forecastHours.sort((a, b) => a - b);
+
+    if (this.forecastHours.length === 0) {
+      const details = this.loadErrors.length
+        ? this.loadErrors.map((entry) => `${entry.hour}h: ${entry.message}`).join('; ')
+        : 'No wind fields were loaded.';
+      throw new Error(`Failed to load any wind fields. ${details}`);
+    }
   }
 
   query({ lat, lon, forecastHour, time }: WindQuery): WindQueryResult | null {
